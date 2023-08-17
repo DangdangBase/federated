@@ -412,7 +412,8 @@ def main(argv):
       batch_size=FLAGS.server_train_batch_size, noise_dim=FLAGS.noise_dim)
   client_gen_inputs_dataset = _create_gen_inputs_dataset(
       batch_size=CLIENT_TRAIN_BATCH_SIZE, noise_dim=FLAGS.noise_dim)
-
+  
+  FLAGS.filtering = 'None'
   if FLAGS.filtering == 'by_user':
     client_real_images_train_tff_data = (
         fedu.get_filtered_by_user_client_data_for_training(

@@ -13,6 +13,9 @@
 # limitations under the License.
 """Script to replicate experiments in https://arxiv.org/abs/1911.06679."""
 
+import sys
+sys.path.append('/home/wnlab6-guest/federated-test/federated')
+
 from absl import app
 from absl import flags
 

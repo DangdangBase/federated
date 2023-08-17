@@ -127,6 +127,12 @@ def client_computation(
   tf.nest.map_structure(lambda a, b: a.assign(b), discriminator.weights,
                         from_server.discriminator_weights)
 
+  gan_loss_fns = gan_losses.WassersteinGanLossFns(
+    grad_penalty_lambda=10.0)
+  disc_optimizer = tf.keras.optimizers.SGD(lr=0.0005)
+  tmp_train_discriminator_fn = create_train_discriminator_fn(
+      gan_loss_fns, disc_optimizer)
+  
   num_examples = tf.constant(0)
   gen_inputs_and_real_data = tf.data.Dataset.zip((gen_inputs_ds, real_data_ds))
   for gen_inputs, real_data in gen_inputs_and_real_data:
@@ -139,7 +145,7 @@ def client_computation(
     min_batch_size = tf.minimum(tf.shape(real_data)[0], tf.shape(gen_inputs)[0])
     real_data = real_data[0:min_batch_size]
     gen_inputs = gen_inputs[0:min_batch_size]
-    num_examples += train_discriminator_fn(generator, discriminator, gen_inputs,
+    num_examples += tmp_train_discriminator_fn(generator, discriminator, gen_inputs,
                                            real_data)
 
   weights_delta = tf.nest.map_structure(tf.subtract, discriminator.weights,
@@ -228,8 +234,14 @@ def server_computation(
 
   gen_examples_this_round = tf.constant(0)
 
+  gan_loss_fns = gan_losses.WassersteinGanLossFns(
+  grad_penalty_lambda=10.0)
+  gen_optimizer = tf.keras.optimizers.SGD(lr=0.005)
+  tmp_train_generator_fn = create_train_generator_fn(
+      gan_loss_fns, gen_optimizer)
+
   for gen_inputs in gen_inputs_ds:  # Compiled by autograph.
-    gen_examples_this_round += train_generator_fn(generator, discriminator,
+    gen_examples_this_round += tmp_train_generator_fn(generator, discriminator,
                                                   gen_inputs)
 
   server_state.counters[
@@ -256,10 +268,12 @@ def create_train_generator_fn(gan_loss_fns: gan_losses.AbstractGanLossFns,
   # that when it is bound the train fn isn't holding onto a different copy of
   # the optimizer variables then the copy that is being exchanged b/w server and
   # clients.
-  if gen_optimizer.variables():
-    raise ValueError(
-        'Expected gen_optimizer to not have been used previously, but '
-        'variables were already initialized.')
+
+  # print(gen_optimizer.variables()[0])
+  # if gen_optimizer.variables():
+  #   raise ValueError(
+  #       'Expected gen_optimizer to not have been used previously, but '
+  #       'variables were already initialized.')
 
   @tf.function
   def train_generator_fn(generator: tf.keras.Model,
@@ -304,10 +318,11 @@ def create_train_discriminator_fn(
   # that when it is bound the train fn isn't holding onto a different copy of
   # the optimizer variables then the copy that is being exchanged b/w server and
   # clients.
-  if disc_optimizer.variables():
-    raise ValueError(
-        'Expected disc_optimizer to not have been used previously, but '
-        'variables were already initialized.')
+
+  # if disc_optimizer.variables():
+  #   raise ValueError(
+  #       'Expected disc_optimizer to not have been used previously, but '
+  #       'variables were already initialized.')
 
   @tf.function
   def train_discriminator_fn(generator: tf.keras.Model,
